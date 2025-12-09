@@ -50,3 +50,4 @@ exec odoo --db_host=db \
           --database=${POSTGRES_DB} \
           --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons \
           --dev=xml,reload,qweb
+          -u task
