@@ -1,0 +1,36 @@
+[project]
+name = "odoo-docker"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+exclude = [
+    ".git",
+    "__pycache__",
+    "*.pyc",
+    ".venv",
+    "venv",
+    "venv_old",
+]
+
+[tool.ruff.lint]
+select = [
+    "F",   # Pyflakes
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "B",   # flake8-bugbear (errores comunes)
+]
+
+ignore = [
+    "E501",  # line too long (Odoo usa líneas largas)
+    "E301",  # expected 1 blank line
+    "E302",  # expected 2 blank lines
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["odoo", "odoo.addons"]
+
+[tool.ty]
+exclude = ["__pycache__", "*.pyc"]

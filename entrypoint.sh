@@ -12,14 +12,13 @@ TABLE_COUNT=$(PGPASSWORD=${POSTGRES_PASSWORD} psql -h db -U ${POSTGRES_USER} -d 
 
 if [ "$TABLE_COUNT" -eq "0" ]; then
   echo "Base de datos vacía. Inicializando Odoo con módulo base..."
-  odoo --db_host=db \
+  odoo -c /etc/odoo/odoo.conf \
+       --db_host=db \
        --db_user=${POSTGRES_USER} \
        --db_password=${POSTGRES_PASSWORD} \
        --database=${POSTGRES_DB} \
-       --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons \
        -i base \
-       --stop-after-init \
-       --without-demo=all
+       --stop-after-init
 
   echo "Configurando credenciales del administrador..."
 
@@ -29,13 +28,12 @@ if [ "$TABLE_COUNT" -eq "0" ]; then
     "UPDATE res_users SET login='${ODOO_ADMIN_EMAIL}' WHERE id=2;"
 
   # Para la contraseña, necesitamos ejecutar un comando de Odoo porque usa hashing
-  odoo shell --db_host=db \
+  odoo shell -c /etc/odoo/odoo.conf \
+             --db_host=db \
              --db_user=${POSTGRES_USER} \
              --db_password=${POSTGRES_PASSWORD} \
              --database=${POSTGRES_DB} \
-             --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons \
-             --no-http \
-             -c /dev/null <<EOF
+             --no-http <<EOF
 env['res.users'].browse(2).write({'password': '${ODOO_ADMIN_PASSWORD}'})
 env.cr.commit()
 EOF
@@ -44,10 +42,19 @@ EOF
 fi
 
 # Arrancar Odoo normalmente
-exec odoo --db_host=db \
-          --db_user=${POSTGRES_USER} \
-          --db_password=${POSTGRES_PASSWORD} \
-          --database=${POSTGRES_DB} \
-          --addons-path=/usr/lib/python3/dist-packages/odoo/addons,/mnt/extra-addons \
-          --dev=xml,reload,qweb
-          -u task
+# Si ODOO_DEV_MODULES está definido, actualizar esos módulos automáticamente
+if [ -n "$ODOO_DEV_MODULES" ]; then
+  echo "Actualizando módulos: $ODOO_DEV_MODULES"
+  exec odoo -c /etc/odoo/odoo.conf \
+            --db_host=db \
+            --db_user=${POSTGRES_USER} \
+            --db_password=${POSTGRES_PASSWORD} \
+            --database=${POSTGRES_DB} \
+            -u "$ODOO_DEV_MODULES"
+else
+  exec odoo -c /etc/odoo/odoo.conf \
+            --db_host=db \
+            --db_user=${POSTGRES_USER} \
+            --db_password=${POSTGRES_PASSWORD} \
+            --database=${POSTGRES_DB}
+fi

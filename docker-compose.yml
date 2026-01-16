@@ -25,16 +25,23 @@ services:
       db:
         condition: service_healthy
     environment:
+      # Variables que Odoo reconoce para conexión a la base de datos
       HOST: db
+      USER: ${POSTGRES_USER}
+      PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      # Variables personalizadas para el entrypoint.sh
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
       ODOO_ADMIN_EMAIL: ${ODOO_ADMIN_EMAIL}
       ODOO_ADMIN_PASSWORD: ${ODOO_ADMIN_PASSWORD}
+      ODOO_DEV_MODULES: ${ODOO_DEV_MODULES}
     volumes:
       - ./addons:/mnt/extra-addons
       - odoo_data:/var/lib/odoo
       - ./entrypoint.sh:/entrypoint.sh:ro
+      - ./odoo.conf:/etc/odoo/odoo.conf:ro
     ports:
       - "${ODOO_PORT}:8069"
     entrypoint: ["/bin/bash", "/entrypoint.sh"]
