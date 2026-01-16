@@ -5,7 +5,6 @@ Setup de desarrollo local para Odoo con PostgreSQL usando Docker Compose.
 ## Requisitos Previos
 
 Docker versión 20.10+ y Docker Compose versión 1.29+ deben estar instalados en el sistema. Verifica la instalación ejecutando:
-
 ```bash
 docker --version
 docker compose version
@@ -14,7 +13,6 @@ docker compose version
 ## Instalación
 
 ### 1. Clonar el Repositorio
-
 ```bash
 git clone https://github.com/tortilicious/odoo-docker.git
 cd odoo-docker
@@ -23,13 +21,11 @@ cd odoo-docker
 ### 2. Configurar Variables de Entorno
 
 Copia el archivo de plantilla y personaliza según sea necesario:
-
 ```bash
 cp .env.example .env
 ```
 
 El archivo `.env` contiene las siguientes variables de configuración:
-
 ```env
 # Configuración de imágenes Docker
 ODOO_IMAGE=odoo:18
@@ -59,13 +55,11 @@ Las variables `ODOO_ADMIN_EMAIL` y `ODOO_ADMIN_PASSWORD` permiten configurar las
 ### 3. Dar Permisos al Script de Inicialización
 
 El proyecto incluye un script `entrypoint.sh` que automatiza la inicialización de la base de datos y la configuración del usuario administrador. Antes de levantar los servicios por primera vez, asegúrate de que tenga permisos de ejecución:
-
 ```bash
 chmod +x entrypoint.sh
 ```
 
 ### 4. Levantar los Servicios
-
 ```bash
 docker compose up -d
 ```
@@ -75,7 +69,6 @@ Este comando levanta PostgreSQL y Odoo en segundo plano. Durante la primera ejec
 En ejecuciones posteriores, el script detecta que la base de datos ya contiene tablas y salta directamente a arrancar Odoo, haciendo el inicio mucho más rápido.
 
 ### 5. Verificar Estado de los Servicios
-
 ```bash
 docker compose ps
 ```
@@ -83,7 +76,6 @@ docker compose ps
 Deberías ver ambos contenedores corriendo con los nombres definidos en las variables de entorno. El estado "healthy" en PostgreSQL indica que la base de datos está lista.
 
 Para ver el progreso de la inicialización en la primera ejecución, puedes seguir los logs en tiempo real:
-
 ```bash
 docker compose logs -f odoo
 ```
@@ -100,7 +92,6 @@ Usa las credenciales que configuraste en el archivo `.env`:
 - **Password**: El valor de `ODOO_ADMIN_PASSWORD` (por defecto: admin)
 
 ## Estructura del Proyecto
-
 ```
 odoo18-docker/
 ├── docker-compose.yml          # Configuración de servicios Docker
@@ -109,6 +100,7 @@ odoo18-docker/
 ├── .env                        # Variables locales (privado, no versionado)
 ├── .gitignore                  # Archivos ignorados por Git
 ├── README.md                   # Este archivo
+├── pyproject.toml              # Configuración de herramientas de desarrollo
 │
 └── addons/                     # Módulos personalizados de Odoo
     └── placeholder_module/     # Módulo mínimo para validar el directorio
@@ -133,24 +125,273 @@ El `placeholder_module` es un módulo mínimo que existe porque Odoo valida que 
 Los datos de PostgreSQL y Odoo se almacenan en volúmenes nombrados de Docker, no en carpetas locales del proyecto. Esto evita problemas de permisos entre tu usuario de Linux y los usuarios internos de los contenedores. Los volúmenes se almacenan en `/var/lib/docker/volumes/` y persisten entre reinicios.
 
 Para ver los volúmenes creados:
-
 ```bash
 docker volume ls
 ```
 
 Para inspeccionar la ubicación física de un volumen:
-
 ```bash
 docker volume inspect odoo18-docker_postgres_data
 docker volume inspect odoo18-docker_odoo_data
 ```
+
+## Configuración del Entorno de Desarrollo Local
+
+Además de los servicios Docker, puedes configurar herramientas de linting y type-checking para mejorar la calidad del código de tus módulos personalizados.
+
+### Requisitos
+
+- Python 3.12+
+- uv (gestor de paquetes moderno para Python)
+
+### 1. Instalar uv
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Reinicia tu terminal después de la instalación para que `uv` esté disponible en tu PATH.
+
+### 2. Crear Entorno Virtual
+
+Desde la raíz del proyecto:
+```bash
+cd /ruta/a/odoo-docker
+uv venv
+source .venv/bin/activate  # En Linux/Mac
+```
+
+El entorno virtual se creará en `.venv/` y ya está ignorado por Git.
+
+### 3. Instalar Herramientas de Calidad de Código
+```bash
+# Instalar herramientas globalmente (recomendado)
+uv tool install ruff  # Linter y formateador
+uv tool install ty    # Type checker
+
+# O instalar en el entorno virtual del proyecto
+uv pip install ruff ty
+```
+
+### 4. Configuración de Herramientas
+
+El proyecto incluye un archivo `pyproject.toml` con la configuración para Ruff y Ty adaptada al desarrollo de Odoo:
+```toml
+[project]
+name = "odoo-docker"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120  # Odoo usa líneas más largas que PEP8 estándar
+target-version = "py312"
+exclude = [
+    ".git",
+    "__pycache__",
+    "*.pyc",
+    ".venv",
+    "venv",
+    "__manifest__.py",  # Los manifests tienen formato especial
+    "__init__.py",
+]
+
+[tool.ruff.lint]
+select = [
+    "F",   # Pyflakes (errores básicos)
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "I",   # isort (ordenar imports)
+    "B",   # flake8-bugbear (errores comunes peligrosos)
+]
+
+ignore = [
+    "E501",  # line too long (Odoo usa líneas largas)
+    "E301",  # expected 1 blank line
+    "E302",  # expected 2 blank lines
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["odoo", "odoo.addons"]
+
+[tool.ty.rules]
+unresolved-import = "ignore"  # Ignora imports de Odoo (están en Docker)
+```
+
+### 5. Uso de las Herramientas
+
+#### Proceso Completo de Verificación
+
+Ejecuta estos comandos en orden antes de hacer commit:
+```bash
+# 1. Formatear código (espacios, indentación, comillas)
+ruff format addons/tu_modulo/
+
+# 2. Arreglar errores de estilo automáticamente
+ruff check --fix --unsafe-fixes addons/tu_modulo/
+
+# 3. Verificar que no quedan errores de estilo
+ruff check addons/tu_modulo/
+
+# 4. Verificar tipos de datos
+ty check addons/tu_modulo/
+```
+
+#### Comandos Individuales
+
+**Ruff (Linter y Formateador)**
+```bash
+# Formatear archivo o directorio
+ruff format addons/estate/models/estate_property.py
+
+# Ver qué cambiaría sin aplicar
+ruff format --diff addons/estate/
+
+# Verificar errores de estilo
+ruff check addons/estate/
+
+# Arreglar errores automáticamente
+ruff check --fix addons/estate/
+
+# Arreglar incluyendo cambios potencialmente peligrosos
+ruff check --fix --unsafe-fixes addons/estate/
+```
+
+**Ty (Type Checker)**
+```bash
+# Verificar tipos en un archivo
+ty check addons/estate/models/estate_property.py
+
+# Verificar tipos en todo el módulo
+ty check addons/estate/
+
+# Salida concisa (más fácil de leer)
+ty check --output-format concise addons/estate/
+
+# Modo verboso para más detalles
+ty check -v addons/estate/
+```
+
+### 6. Integración con PyCharm
+
+Si usas PyCharm Professional, puedes integrar estas herramientas:
+
+#### External Tools
+
+**Settings → Tools → External Tools → +**
+
+**Ruff Format:**
+- Name: `Ruff Format`
+- Program: `ruff` (o `/home/tu_usuario/.local/bin/ruff`)
+- Arguments: `format $FilePath$`
+- Working directory: `$ProjectFileDir$`
+
+**Ruff Check:**
+- Name: `Ruff Check`
+- Program: `ruff`
+- Arguments: `check --fix --unsafe-fixes $FilePath$`
+- Working directory: `$ProjectFileDir$`
+
+**Ty Check:**
+- Name: `Ty Check`
+- Program: `ty` (o `/home/tu_usuario/.local/bin/ty`)
+- Arguments: `check $FilePath$`
+- Working directory: `$ProjectFileDir$`
+
+#### Configurar el Intérprete Python
+
+1. **Settings → Project → Python Interpreter**
+2. Click en el engranaje → **Add Interpreter → Add Local Interpreter**
+3. Selecciona **Existing** → Busca `.venv/bin/python`
+4. Apply y OK
+
+Ahora PyCharm usará tu entorno virtual para autocompletado y análisis de código.
+
+### 7. Script de Verificación Automatizado
+
+Puedes crear un script `lint.sh` en la raíz del proyecto para automatizar el proceso:
+```bash
+#!/bin/bash
+# lint.sh - Script para verificar código
+
+if [ -z "$1" ]; then
+    echo "Uso: ./lint.sh <archivo_o_directorio>"
+    exit 1
+fi
+
+echo "📁 Procesando: $1"
+echo ""
+
+echo "🎨 Paso 1/4: Formateando código..."
+ruff format "$1"
+echo ""
+
+echo "🔧 Paso 2/4: Arreglando errores automáticos..."
+ruff check --fix --unsafe-fixes "$1"
+echo ""
+
+echo "📝 Paso 3/4: Verificando estilo..."
+if ruff check "$1"; then
+    echo "✅ Estilo correcto"
+else
+    echo "⚠️  Hay errores de estilo que debes arreglar manualmente"
+fi
+echo ""
+
+echo "🔍 Paso 4/4: Verificando tipos..."
+if ty check "$1"; then
+    echo "✅ Tipos correctos"
+else
+    echo "⚠️  Hay errores de tipos que debes arreglar manualmente"
+fi
+echo ""
+
+echo "🎉 ¡Proceso completado!"
+```
+
+Dale permisos de ejecución:
+```bash
+chmod +x lint.sh
+./lint.sh addons/estate/
+```
+
+### 8. Buenas prácticas para Type Hints
+
+Para que Ty pueda verificar tu código efectivamente, usa type hints completos:
+```python
+from odoo import models, fields, api
+from odoo.exceptions import UserError
+
+
+class EstateProperty(models.Model):
+    _name = "estate.property"
+    _description = "Real Estate Property"
+
+    name = fields.Char(required=True)
+    expected_price = fields.Float(required=True)
+
+    def action_sold(self) -> None:
+        """Marca la propiedad como vendida."""
+        for record in self:
+            if record.state == "canceled":
+                raise UserError("No se puede vender una propiedad cancelada")
+            record.state = "sold"
+
+    @api.depends("living_area", "garden_area")
+    def _compute_total_area(self) -> None:
+        """Calcula el área total de la propiedad."""
+        for record in self:
+            record.total_area = record.living_area + record.garden_area
+```
+
+### Notas Importantes
+
+- **El entorno virtual es solo para desarrollo local**: Los módulos de Odoo se ejecutan dentro del contenedor Docker, que tiene su propio Python y dependencias.
+- **Ruff y Ty son herramientas de calidad**: No afectan la ejecución del código, solo te ayudan a detectar problemas antes de ejecutar.
+- **Reinicia Odoo después de cambios en Python**: `docker compose restart odoo` para que los cambios se apliquen en el contenedor.
 
 ## Gestión de Servicios
 
 ### Ver Logs en Tiempo Real
 
 Cuando levantas los servicios en modo detached (`-d`), puedes ver los logs con el comando `docker compose logs`. Añade el flag `-f` para seguir los logs en tiempo real:
-
 ```bash
 docker compose logs -f           # Todos los logs
 docker compose logs -f odoo      # Solo logs de Odoo
@@ -160,7 +401,6 @@ docker compose logs -f db        # Solo logs de PostgreSQL
 Presiona `Ctrl+C` para dejar de seguir los logs. Los contenedores siguen corriendo en segundo plano.
 
 ### Reiniciar Servicios
-
 ```bash
 docker compose restart odoo      # Reinicia solo Odoo
 docker compose restart db        # Reinicia solo PostgreSQL
@@ -170,14 +410,12 @@ docker compose restart           # Reinicia todos los servicios
 Reinicia Odoo cuando realices cambios en código Python de tus módulos. Los cambios en XML se detectan automáticamente en modo desarrollo.
 
 ### Detener Servicios
-
 ```bash
 docker compose stop              # Detiene sin eliminar contenedores
 docker compose start             # Reinicia servicios detenidos
 ```
 
 ### Eliminar Servicios
-
 ```bash
 docker compose down              # Elimina contenedores pero preserva volúmenes
 docker compose down -v           # Elimina contenedores Y volúmenes (PÉRDIDA DE DATOS)
@@ -188,7 +426,6 @@ Usa `down -v` solo cuando necesites limpiar completamente el ambiente y empezar 
 ## Acceso a Contenedores
 
 ### Terminal Interactiva en Odoo
-
 ```bash
 docker compose exec odoo bash
 ```
@@ -198,13 +435,11 @@ Abre una terminal bash dentro del contenedor de Odoo.
 ### Acceso a PostgreSQL
 
 Para listar todas las bases de datos:
-
 ```bash
 docker compose exec db psql -U odoo -d postgres -c "\l"
 ```
 
 Para conectarte a la base de datos de Odoo y ejecutar consultas:
-
 ```bash
 docker compose exec db psql -U odoo -d odoo
 ```
@@ -230,7 +465,6 @@ El parámetro `--dev=xml,reload,qweb` habilita características útiles para des
 ## Actualizar Versiones
 
 Para actualizar la versión de Odoo o PostgreSQL, simplemente modifica las variables correspondientes en el archivo `.env`:
-
 ```env
 ODOO_IMAGE=odoo:19
 POSTGRES_IMAGE=postgres:18
@@ -239,7 +473,6 @@ POSTGRES_CONTAINER_NAME=postgres-18
 ```
 
 Luego recrea los contenedores:
-
 ```bash
 docker compose down
 docker compose up -d
@@ -271,3 +504,5 @@ Ten en cuenta que cambiar la versión de PostgreSQL puede requerir una migració
 
 - Documentación oficial de Odoo: https://www.odoo.com/documentation/18.0/
 - Documentación de Docker: https://docs.docker.com/
+- Ruff: https://docs.astral.sh/ruff/
+- Ty: https://docs.astral.sh/ty/

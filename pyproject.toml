@@ -12,6 +12,8 @@ exclude = [
     ".venv",
     "venv",
     "venv_old",
+    "__manifest__.py",
+    "__init__.py",
 ]
 
 [tool.ruff.lint]
@@ -20,11 +22,11 @@ select = [
     "E",   # pycodestyle errors
     "W",   # pycodestyle warnings
     "I",   # isort
-    "B",   # flake8-bugbear (errores comunes)
+    "B",   # flake8-bugbear
 ]
 
 ignore = [
-    "E501",  # line too long (Odoo usa líneas largas)
+    "E501",  # line too long
     "E301",  # expected 1 blank line
     "E302",  # expected 2 blank lines
 ]
@@ -32,5 +34,6 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = ["odoo", "odoo.addons"]
 
-[tool.ty]
-exclude = ["__pycache__", "*.pyc"]
+# Configuración de ty según documentación oficial
+[tool.ty.rules]
+unresolved-import = "ignore"  # Ignora imports no resueltos (como odoo)
